@@ -1,6 +1,10 @@
+
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
+
 
 public class Board{
     private final int boardWidth;
@@ -8,6 +12,8 @@ public class Board{
     private final int noteWidth;
     private final int noteHeight;
     private final Set<String> validcolors;
+
+    private final List<Note> notes = new ArrayList<>();
 
    public Board(int boardWidth, int boardHeight, int noteWidth, int noteHeight, Set<String> colors){
     this.boardHeight = boardHeight;
@@ -33,5 +39,33 @@ public class Board{
     public Set<String> getValidColors(){
         return Collections.unmodifiableSet(validcolors);
     }
+
+    public synchronized void clear(){
+        notes.clear();
+    }
+
+    public synchronized void shake(){
+        notes.clear();
+    }
+
+    public synchronized void post(int x, int y, String color, String message) throws ProtocolException{
+        if(!validcolors.contains(color)){
+            throw new ProtocolException(ErrorCode.COLOR_NOT_SUPPORTED, "Unsupported color");
+        }
+        Note newNote = new Note(x, y, color, message);
+
+        if(!newNote.fitsInBoard(boardWidth, boardHeight, noteWidth, noteHeight)){
+            throw new ProtocolException(ErrorCode.OUT_OF_BOUNDS, "Note out of bounds");
+        }
+
+        for(Note existing : notes){
+            if(newNote.completelyOverlaps(existing)){
+                throw new ProtocolException(ErrorCode.COMPLETE_OVERLAP, "Cannot completely overlap existing note");
+            }
+        }
+        notes.add(newNote);
+    }
 }
+
+
 
