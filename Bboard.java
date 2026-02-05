@@ -65,7 +65,7 @@ public class Bboard{
         System.out.println("Colors: " + Arrays.toString(colors.toArray()));
 
         try(ServerSocket serverSocket = new ServerSocket(port)){
-            System.out.println("Server listening on port" + port);
+            System.out.println("Server listening on port " + port);
 
             while(true){
                 Socket clientSocket = serverSocket.accept();
