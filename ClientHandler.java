@@ -77,6 +77,49 @@ public class ClientHandler extends Thread{
                     }
                 }
 
+                else if(command.equals("PIN")){
+                    if(parts.length != 3){
+                        out.println(Protocol.error(ErrorCode.INVALID_FORMAT, "PIN requires x y"));
+                        continue;
+                    }
+
+                    try{
+                        int x = Integer.parseInt(parts[1]);
+                        int y = Integer.parseInt(parts[2]);
+
+                        board.pin(x,y);
+                        out.println(Protocol.ok());
+                    }
+                    catch(NumberFormatException e){
+                        out.println(Protocol.error(ErrorCode.INVALID_FORMAT, "x and y must be integers"));
+                    }
+                    catch(ProtocolException e){
+                        out.println(Protocol.error(e.getCode(), e.getMessage()));
+                    }
+                    
+                }
+
+                else if(command.equals("UNPIN")){
+                    if(parts.length != 3){
+                        out.println(Protocol.error(ErrorCode.INVALID_FORMAT, "UNPIN requires x y"));
+                        continue;
+                    } 
+
+                    try{
+                        int x = Integer.parseInt(parts[1]);
+                        int y = Integer.parseInt(parts[2]);
+
+                        board.unpin(x, y);
+                        out.println(Protocol.ok());
+                    }
+                    catch(NumberFormatException e){
+                        out.println(Protocol.error(ErrorCode.INVALID_FORMAT, "x and y must be integers"));
+                    }
+                    catch(ProtocolException e){
+                        out.println(Protocol.error(e.getCode(), e.getMessage()));
+                    }
+                }
+
                 else{
                     out.println("ERROR INVALID_COMMAND Unknown command");
                 }

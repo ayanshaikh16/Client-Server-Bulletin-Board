@@ -4,6 +4,8 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.HashMap;
+import java.util.Map;
 
 
 public class Board{
@@ -14,6 +16,11 @@ public class Board{
     private final Set<String> validcolors;
 
     private final List<Note> notes = new ArrayList<>();
+    private final Map<String, Integer> pinCountsAtCoord = new HashMap<>();
+
+    private String key(int x, int y){
+        return x + "," + y;
+    }
 
    public Board(int boardWidth, int boardHeight, int noteWidth, int noteHeight, Set<String> colors){
     this.boardHeight = boardHeight;
@@ -42,10 +49,12 @@ public class Board{
 
     public synchronized void clear(){
         notes.clear();
+        pinCountsAtCoord.clear();
     }
 
     public synchronized void shake(){
         notes.clear();
+        pinCountsAtCoord.clear();
     }
 
     public synchronized void post(int x, int y, String color, String message) throws ProtocolException{
@@ -64,6 +73,40 @@ public class Board{
             }
         }
         notes.add(newNote);
+    }
+
+    public synchronized void pin(int x, int y) throws ProtocolException{
+        boolean found = false;
+
+        for(Note n : notes){
+            if(n.contains(x, y, noteWidth, noteHeight)){
+                n.addPin();
+                found = true;
+            }
+        }
+        if(!found){
+            throw new ProtocolException(ErrorCode.NO_NOTE_AT_COORDINATE, "No note at given coordinate");
+        }
+        String key = key(x, y);
+        pinCountsAtCoord.put(key, pinCountsAtCoord.getOrDefault(key, 0) + 1);
+    }
+
+    public synchronized void unpin(int x, int y) throws ProtocolException{
+        String key = key(x, y);
+        Integer count = pinCountsAtCoord.get(key);
+
+        if(count == null || count ==0){
+            throw new ProtocolException(ErrorCode.PIN_NOT_FOUND, "No pin at given coordinate");
+        }
+
+        if(count == 1) pinCountsAtCoord.remove(key);
+        else pinCountsAtCoord.put(key, count - 1);
+
+        for(Note n : notes){
+            if(n.contains(x, y, noteWidth, noteHeight)){
+                n.removePin();
+            }
+        }
     }
 }
 
