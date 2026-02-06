@@ -20,8 +20,8 @@ public class BoardPanel extends JPanel {
         }
     }
 
-    private int boardW = 200, boardH = 100;
-    private int noteW = 20, noteH = 10;
+    private int boardW = 200, boardH = 200;
+    private int noteW = 20, noteH = 20;
 
     private final List<NoteView> notes = new ArrayList<>();
     private final List<Point> pins = new ArrayList<>();
