@@ -120,6 +120,62 @@ public class ClientHandler extends Thread{
                     }
                 }
 
+                else if(command.equals("GET")){
+
+                    if(parts.length == 2 && parts[1].equalsIgnoreCase("PINS")){
+                        out.println(board.getPinsResponse());
+                        continue;
+                    }
+                    
+                    String colorFilter = null;
+                    Integer containsX = null;
+                    Integer containsY = null;
+                    String refersTo = null;
+
+                    try{
+                        for(int i = 1; i < parts.length; i++){
+                            String tok = parts[i];
+
+                            if(tok.startsWith("color=")){
+                                colorFilter = tok.substring(6);
+                                if(colorFilter.isEmpty()){
+                                    out.println(Protocol.error(ErrorCode.INVALID_FORMAT, "color filter missing value"));
+                                    break;
+                                }
+                            }
+                            else if(tok.startsWith("contains=")){
+                                String xStr = tok.substring(9);
+                                if(xStr.isEmpty()){
+                                    out.println(Protocol.error(ErrorCode.INVALID_FORMAT, "contains filter missing x"));
+                                    break;
+                                }
+                                if(i + 1 >=parts.length){
+                                    out.println(Protocol.error(ErrorCode.INVALID_FORMAT, "contains filter mssing y"));
+                                    break;
+                                }
+                                containsX = Integer.parseInt(xStr);
+                                containsY = Integer.parseInt(parts[i + 1]);
+                                i++;
+                            }
+                            else if(tok.startsWith("refersTo=")){
+                                refersTo = tok.substring(9);
+                                if(refersTo.isEmpty()){
+                                    out.println(Protocol.error(ErrorCode.INVALID_FORMAT, "refersTo filter missing value"));
+                                    break;
+                                }
+                            }
+                            else{
+                                out.println(Protocol.error(ErrorCode.INVALID_FORMAT, "Unknown GET filter"));
+                                break;
+                            }
+                        }
+                        out.println(board.getNotesResponse(colorFilter, containsX, containsY, refersTo));
+                    }
+                    catch(NumberFormatException e){
+                        out.println(Protocol.error(ErrorCode.INVALID_FORMAT, "contains requires integer x and y"));
+                    }
+                }
+
                 else{
                     out.println("ERROR INVALID_COMMAND Unknown command");
                 }

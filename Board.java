@@ -53,8 +53,7 @@ public class Board{
     }
 
     public synchronized void shake(){
-        notes.clear();
-        pinCountsAtCoord.clear();
+        notes.removeIf(n -> !n.isPinned());
     }
 
     public synchronized void post(int x, int y, String color, String message) throws ProtocolException{
@@ -107,6 +106,76 @@ public class Board{
                 n.removePin();
             }
         }
+    }
+
+    public synchronized String getPinsResponse(){
+        StringBuilder sb = new StringBuilder();
+        sb.append("DATA PINS ");
+
+        int totalPins = 0;
+        for(int count : pinCountsAtCoord.values()) {
+            totalPins += count;
+        }
+        sb.append(totalPins);
+
+        for(String key : pinCountsAtCoord.keySet()){
+            String[] parts = key.split(",");
+            int x = Integer.parseInt(parts[0]);
+            int y = Integer.parseInt(parts[1]);
+            int count = pinCountsAtCoord.get(key);
+
+            for(int i = 0; i < count; i++){
+                sb.append(" ").append(x).append(" ").append(y);
+            }
+        }
+        return sb.toString();
+    }
+
+    public synchronized String getNotesResponse(String colorFilter, Integer containsX, Integer containsY, String refersTo){
+        StringBuilder sb = new StringBuilder();
+        sb.append("DATA NOTES ");
+
+        List<Note> matches = new ArrayList<>();
+        for(Note n : notes){
+            if(colorFilter != null && !n.getColor().equals(colorFilter)){
+                continue;
+            }
+            
+            if(containsX != null && containsY != null){
+                if(!n.contains(containsX, containsY, noteWidth, noteHeight)){
+                    continue;
+                }
+            }
+            
+            if(refersTo != null){
+                String message = n.getMessage();
+                if(message == null){
+                    message = "";
+                }
+                if(!message.toLowerCase().contains(refersTo.toLowerCase())){
+                    continue;
+                }
+            }
+
+            matches.add(n);
+        }
+
+        sb.append(matches.size());
+        for(Note n : matches){
+            int pinned = n.isPinned() ? 1 : 0;
+            String message = n.getMessage();
+            int messageLength = message.length();
+
+            sb.append(" ")
+              .append(n.getX()).append(" ")
+              .append(n.getY()).append(" ")
+              .append(n.getColor()).append(" ")
+              .append(pinned).append(" ")
+              .append(messageLength).append(" ")
+              .append(message);
+            
+        }
+        return sb.toString();
     }
 }
 
