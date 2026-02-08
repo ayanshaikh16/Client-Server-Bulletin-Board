@@ -17,6 +17,11 @@ public class ClientGUI extends JFrame {
     private final JCheckBox autoRefreshBox = new JCheckBox("Auto Refresh", true);
     private Timer autoRefreshTimer; // Swing timer
 
+    // Filter-lock: when you run a filtered GET, pause polling on THIS client
+    private boolean filterLock = false;
+    private String lockedGetCommand = "GET";
+    private final JButton exitFilterBtn = new JButton("Exit Filter");
+
     private final BoardPanel boardPanel = new BoardPanel();
 
     private final JTextArea outputArea = new JTextArea(12, 80);
@@ -62,7 +67,9 @@ public class ClientGUI extends JFrame {
 
         outputArea.setEditable(false);
         outputArea.setFont(new Font("Consolas", Font.PLAIN, 12));
+        JScrollPane scroll = new JScrollPane(outputArea);
 
+        // Top bar
         JPanel top = new JPanel(new FlowLayout(FlowLayout.LEFT));
         top.add(new JLabel("Host:"));
         top.add(hostField);
@@ -74,6 +81,7 @@ public class ClientGUI extends JFrame {
 
         disconnectBtn.setEnabled(false);
 
+        // POST panel
         JPanel postPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         postPanel.setBorder(BorderFactory.createTitledBorder("POST"));
         postPanel.add(new JLabel("x"));
@@ -86,6 +94,7 @@ public class ClientGUI extends JFrame {
         postPanel.add(postMsg);
         postPanel.add(postBtn);
 
+        // GET panel
         JPanel getPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         getPanel.setBorder(BorderFactory.createTitledBorder("GET"));
         getPanel.add(new JLabel("color="));
@@ -97,9 +106,13 @@ public class ClientGUI extends JFrame {
         getPanel.add(new JLabel("refersTo="));
         getPanel.add(getRefersTo);
         getPanel.add(getBtn);
+        getPanel.add(exitFilterBtn);
         getPanel.add(getPinsBtn);
         getPanel.add(refreshBtn);
 
+        exitFilterBtn.setEnabled(false);
+
+        // PIN panel
         JPanel pinPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         pinPanel.setBorder(BorderFactory.createTitledBorder("PIN / UNPIN"));
         pinPanel.add(new JLabel("PIN x"));
@@ -108,7 +121,7 @@ public class ClientGUI extends JFrame {
         pinPanel.add(pinY);
         pinPanel.add(pinBtn);
 
-        pinPanel.add(Box.createHorizontalStrut(18));
+        pinPanel.add(Box.createHorizontalStrut(20));
 
         pinPanel.add(new JLabel("UNPIN x"));
         pinPanel.add(unpinX);
@@ -116,20 +129,22 @@ public class ClientGUI extends JFrame {
         pinPanel.add(unpinY);
         pinPanel.add(unpinBtn);
 
+        // Ops panel
         JPanel opsPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         opsPanel.setBorder(BorderFactory.createTitledBorder("Operations"));
         opsPanel.add(clearBtn);
         opsPanel.add(shakeBtn);
 
+        // Controls stack
         JPanel controls = new JPanel();
         controls.setLayout(new BoxLayout(controls, BoxLayout.Y_AXIS));
         controls.add(postPanel);
         controls.add(getPanel);
         controls.add(pinPanel);
         controls.add(opsPanel);
+        controls.add(scroll);
 
-        JScrollPane outScroll = new JScrollPane(outputArea);
-
+        // Layout main
         JPanel center = new JPanel(new BorderLayout());
         center.add(boardPanel, BorderLayout.CENTER);
         center.add(controls, BorderLayout.SOUTH);
@@ -138,7 +153,6 @@ public class ClientGUI extends JFrame {
         cp.setLayout(new BorderLayout());
         cp.add(top, BorderLayout.NORTH);
         cp.add(center, BorderLayout.CENTER);
-        cp.add(outScroll, BorderLayout.SOUTH);
 
         // Actions
         connectBtn.addActionListener(e -> connect());
@@ -148,6 +162,7 @@ public class ClientGUI extends JFrame {
         getPinsBtn.addActionListener(e -> sendAndHandleAsync("GET PINS", true));
         refreshBtn.addActionListener(e -> refreshBoth(true));
         getBtn.addActionListener(e -> doGet());
+        exitFilterBtn.addActionListener(e -> exitFilterMode());
 
         pinBtn.addActionListener(e -> doPin());
         unpinBtn.addActionListener(e -> doUnpin());
@@ -175,6 +190,8 @@ public class ClientGUI extends JFrame {
         clearBtn.setEnabled(connected);
         shakeBtn.setEnabled(connected);
         autoRefreshBox.setEnabled(connected);
+
+        exitFilterBtn.setEnabled(connected && filterLock);
     }
 
     private void log(String s) {
@@ -198,16 +215,19 @@ public class ClientGUI extends JFrame {
             out = new PrintWriter(socket.getOutputStream(), true);
 
             String init = in.readLine();
-            log("SERVER: " + init);
-            handleInit(init);
+            if (init != null) {
+                log("SERVER: " + init);
+                handleInit(init);
+            }
+
+            filterLock = false;
+            lockedGetCommand = "GET";
+            exitFilterBtn.setEnabled(false);
 
             setConnectedUI(true);
             log("CLIENT: Connected.");
 
-            // Start auto refresh
             startAutoRefresh();
-
-            // initial refresh
             refreshBoth(false);
 
         } catch (IOException ex) {
@@ -219,6 +239,10 @@ public class ClientGUI extends JFrame {
 
     private void disconnect() {
         stopAutoRefresh();
+        filterLock = false;
+        lockedGetCommand = "GET";
+        exitFilterBtn.setEnabled(false);
+
         sendAndHandleAsync("DISCONNECT", true);
         cleanup();
         setConnectedUI(false);
@@ -226,10 +250,11 @@ public class ClientGUI extends JFrame {
     }
 
     private void startAutoRefresh() {
-        stopAutoRefresh(); // safety
+        stopAutoRefresh();
         autoRefreshTimer = new Timer(1000, e -> {
-            if (autoRefreshBox.isSelected()) {
-                refreshBoth(false); // silent refresh by default
+            if (autoRefreshBox.isSelected() && !filterLock) {
+                // silent polling: NO LOG SPAM
+                refreshBoth(false);
             }
         });
         autoRefreshTimer.start();
@@ -250,8 +275,8 @@ public class ClientGUI extends JFrame {
     }
 
     private void refreshBoth(boolean logRequests) {
-        // If your server supports plain GET = all notes, this is perfect.
-        sendAndHandleAsync("GET", logRequests);
+        String getCmd = filterLock ? lockedGetCommand : "GET";
+        sendAndHandleAsync(getCmd, logRequests);
         sendAndHandleAsync("GET PINS", logRequests);
     }
 
@@ -260,10 +285,7 @@ public class ClientGUI extends JFrame {
     }
 
     private void sendAndHandle(String cmd, boolean logRequests) {
-        if (out == null || in == null) {
-            if (logRequests) log("CLIENT: Not connected.");
-            return;
-        }
+        if (out == null || in == null) return;
 
         synchronized (ioLock) {
             try {
@@ -271,50 +293,28 @@ public class ClientGUI extends JFrame {
                 out.println(cmd);
 
                 String resp = in.readLine();
-                if (resp == null) {
-                    if (logRequests) log("SERVER: (connection closed)");
-                    cleanup();
-                    SwingUtilities.invokeLater(() -> setConnectedUI(false));
-                    return;
-                }
+                if (resp == null) return;
 
+                // ✅ ONLY log server responses for manual actions (logRequests=true)
+                // Polling uses logRequests=false so it updates the board without spamming output.
                 if (logRequests) log("SERVER: " + resp);
 
+                // Always update visuals regardless of logging
                 if (resp.startsWith("DATA INIT")) {
                     handleInit(resp);
                 } else if (resp.startsWith("DATA NOTES")) {
-                    List<BoardPanel.NoteView> notes = parseDataNotes(resp);
-                    boardPanel.setNotes(notes);
+                    boardPanel.setNotes(parseDataNotes(resp));
                 } else if (resp.startsWith("DATA PINS")) {
-                    List<Point> pins = parseDataPins(resp);
-                    boardPanel.setPins(pins);
+                    boardPanel.setPins(parseDataPins(resp));
                 }
 
             } catch (IOException ex) {
                 if (logRequests) log("CLIENT: IO error: " + ex.getMessage());
-                cleanup();
-                SwingUtilities.invokeLater(() -> setConnectedUI(false));
             }
         }
     }
 
-    // ---- UI Actions ----
-
-    private void doPost() {
-        String x = postX.getText().trim();
-        String y = postY.getText().trim();
-        String c = postColor.getText().trim();
-        String m = postMsg.getText().trim();
-
-        if (x.isEmpty() || y.isEmpty() || c.isEmpty() || m.isEmpty()) {
-            log("CLIENT: POST requires x, y, color, message.");
-            return;
-        }
-
-        sendAndHandleAsync("POST " + x + " " + y + " " + c + " " + m, true);
-        refreshBoth(false);
-    }
-
+    // ---- GET / Filter Lock ----
     private void doGet() {
         StringBuilder cmd = new StringBuilder("GET");
 
@@ -335,8 +335,44 @@ public class ClientGUI extends JFrame {
 
         if (!ref.isEmpty()) cmd.append(" ").append("refersTo=").append(ref);
 
-        sendAndHandleAsync(cmd.toString(), true);
+        String getCmd = cmd.toString();
+        boolean hasFilters = !getCmd.equals("GET");
+
+        if (hasFilters) {
+            filterLock = true;
+            lockedGetCommand = getCmd;
+            exitFilterBtn.setEnabled(true);
+            log("CLIENT: Filter mode ON (polling paused). Click 'Exit Filter' to resume live updates.");
+        } else {
+            if (filterLock) {
+                exitFilterMode();
+                return;
+            }
+        }
+
+        sendAndHandleAsync(getCmd, true);
         sendAndHandleAsync("GET PINS", false);
+    }
+
+    private void exitFilterMode() {
+        filterLock = false;
+        lockedGetCommand = "GET";
+        exitFilterBtn.setEnabled(false);
+        log("CLIENT: Filter mode OFF (polling resumed).");
+        refreshBoth(true);
+    }
+
+    private void doPost() {
+        String x = postX.getText().trim();
+        String y = postY.getText().trim();
+        String c = postColor.getText().trim();
+        String m = postMsg.getText().trim();
+        if (x.isEmpty() || y.isEmpty() || c.isEmpty() || m.isEmpty()) {
+            log("CLIENT: POST requires x y color message.");
+            return;
+        }
+        sendAndHandleAsync("POST " + x + " " + y + " " + c + " " + m, true);
+        refreshBoth(false);
     }
 
     private void doPin() {
@@ -361,7 +397,7 @@ public class ClientGUI extends JFrame {
         refreshBoth(false);
     }
 
-    // ---- Parsing ----
+    // ---- parsing ----
 
     private void handleInit(String initLine) {
         try {
@@ -382,19 +418,12 @@ public class ClientGUI extends JFrame {
         if (parts.length < 3) return list;
         if (!parts[0].equals("DATA") || !parts[1].equals("PINS")) return list;
 
-        int k;
-        try { k = Integer.parseInt(parts[2]); }
-        catch (NumberFormatException e) { return list; }
-
+        int k = Integer.parseInt(parts[2]);
         int i = 3;
         for (int c = 0; c < k && i + 1 < parts.length; c++) {
-            try {
-                int x = Integer.parseInt(parts[i++]);
-                int y = Integer.parseInt(parts[i++]);
-                list.add(new Point(x, y));
-            } catch (NumberFormatException e) {
-                break;
-            }
+            int x = Integer.parseInt(parts[i++]);
+            int y = Integer.parseInt(parts[i++]);
+            list.add(new Point(x, y));
         }
         return list;
     }
@@ -405,26 +434,17 @@ public class ClientGUI extends JFrame {
         if (parts.length < 3) return list;
         if (!parts[0].equals("DATA") || !parts[1].equals("NOTES")) return list;
 
-        int k;
-        try { k = Integer.parseInt(parts[2]); }
-        catch (NumberFormatException e) { return list; }
-
+        int k = Integer.parseInt(parts[2]);
         int i = 3;
+
         for (int noteIdx = 0; noteIdx < k; noteIdx++) {
             if (i + 5 > parts.length) break;
 
-            int x, y, pinned, msgLen;
-            String color;
-
-            try {
-                x = Integer.parseInt(parts[i++]);
-                y = Integer.parseInt(parts[i++]);
-                color = parts[i++];
-                pinned = Integer.parseInt(parts[i++]);
-                msgLen = Integer.parseInt(parts[i++]);
-            } catch (Exception ex) {
-                break;
-            }
+            int x = Integer.parseInt(parts[i++]);
+            int y = Integer.parseInt(parts[i++]);
+            String color = parts[i++];
+            int pinned = Integer.parseInt(parts[i++]);
+            int msgLen = Integer.parseInt(parts[i++]);
 
             StringBuilder msg = new StringBuilder();
             int chars = 0;

@@ -1,9 +1,10 @@
 public class Note{
-    private int x;
+    private final int x;
     private final int y;
     private final String color;
-    private String message;
+    private final String message;
 
+    // simple pinned state: if at least one pin hits this note
     private int pinCount = 0;
 
     public Note(int x, int y, String color, String message){
@@ -13,37 +14,15 @@ public class Note{
         this.message = message;
     }
 
-    public int getX(){
-        return x;
-    }
-    public int getY(){
-        return y;
-    }
-    public String getColor(){
-        return color;
-    }
-    public String getMessage(){
-        return message;
-    }
-
-    public boolean isPinned(){
-        return pinCount >0;
-    }
-
-    public void addPin(){
-        pinCount++;
-    }
-
-    public boolean removePin(){
-        if(pinCount >0){
-            pinCount--;
-            return true;
-        }
-        return false;
-    }
+    public int getX(){ return x; }
+    public int getY(){ return y; }
+    public String getColor(){ return color; }
+    public String getMessage(){ return message; }
 
     public boolean fitsInBoard(int boardWidth, int boardHeight, int noteWidth, int noteHeight){
-        return x >= 0 && y >= 0 && (x + noteWidth) <= boardWidth && (y + noteHeight) <= boardHeight;
+        return x >= 0 && y >= 0 &&
+                (x + noteWidth) <= boardWidth &&
+                (y + noteHeight) <= boardHeight;
     }
 
     public boolean completelyOverlaps(Note other){
@@ -51,6 +30,19 @@ public class Note{
     }
 
     public boolean contains(int px, int py, int noteWidth, int noteHeight){
-        return px >= x && px < (x + noteWidth) && py >= y && py < (y + noteHeight);
+        return px >= x && px < x + noteWidth &&
+               py >= y && py < y + noteHeight;
+    }
+
+    public void addPin(){
+        pinCount++;
+    }
+
+    public void removePin(){
+        if (pinCount > 0) pinCount--;
+    }
+
+    public boolean isPinned(){
+        return pinCount > 0;
     }
 }

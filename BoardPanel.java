@@ -8,7 +8,7 @@ public class BoardPanel extends JPanel {
     public static class NoteView {
         public int x, y;
         public String color;
-        public int pinned; // 0 or 1
+        public int pinned; // 0/1
         public String message;
 
         public NoteView(int x, int y, String color, int pinned, String message) {
@@ -20,8 +20,8 @@ public class BoardPanel extends JPanel {
         }
     }
 
-    private int boardW = 200, boardH = 200;
-    private int noteW = 20, noteH = 20;
+    private int boardW = 200, boardH = 100;
+    private int noteW = 20, noteH = 10;
 
     private final List<NoteView> notes = new ArrayList<>();
     private final List<Point> pins = new ArrayList<>();
@@ -67,7 +67,6 @@ public class BoardPanel extends JPanel {
             int drawW = getWidth() - 2 * pad;
             int drawH = getHeight() - 2 * pad;
 
-            // Board border
             g2.setColor(Color.BLACK);
             g2.drawRect(pad, pad, drawW, drawH);
 
@@ -76,7 +75,6 @@ public class BoardPanel extends JPanel {
             double sx = (double) drawW / boardW;
             double sy = (double) drawH / boardH;
 
-            // Draw notes (rectangles)
             for (NoteView n : notes) {
                 int px = pad + (int) Math.round(n.x * sx);
                 int py = pad + (int) Math.round(n.y * sy);
@@ -89,7 +87,6 @@ public class BoardPanel extends JPanel {
                 g2.setColor(Color.BLACK);
                 g2.drawRect(px, py, pw, ph);
 
-                // message label (trim)
                 String label = (n.message == null) ? "" : n.message;
                 if (label.length() > 18) label = label.substring(0, 18) + "...";
                 int textX = px + 4;
@@ -97,16 +94,14 @@ public class BoardPanel extends JPanel {
                 g2.drawString(label, textX, textY);
             }
 
-            // Draw pins as BLACK CIRCLES at their actual coordinate positions
             g2.setColor(Color.BLACK);
-            int r = 4; // radius
+            int r = 4;
             for (Point p : pins) {
                 int px = pad + (int) Math.round(p.x * sx);
                 int py = pad + (int) Math.round(p.y * sy);
                 g2.fillOval(px - r, py - r, r * 2, r * 2);
             }
 
-            // Legend
             g2.setColor(Color.DARK_GRAY);
             g2.drawString("Board: " + boardW + "x" + boardH + " | Note: " + noteW + "x" + noteH,
                     pad, getHeight() - 6);
